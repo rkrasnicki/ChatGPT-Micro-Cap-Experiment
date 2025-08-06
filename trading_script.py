@@ -450,7 +450,11 @@ def daily_results(chatgpt_portfolio: pd.DataFrame, cash: float) -> None:
             percent_change = ((price - last_price) / last_price) * 100
             volume = float(data["Volume"].iloc[-1].item())
         except Exception as e:
-            raise Exception(f"Download for {ticker} failed. {e} Try checking internet connection.")
+            # handle download errors gracefully – don't stop the script if one ticker fails
+            print(
+                f"Download for {ticker} failed: {e}. Please check your internet connection."
+            )
+            continue
         print(f"{ticker} closing price: {price:.2f}")
         print(f"{ticker} volume for today: ${volume:,}")
         print(f"percent change from the day before: {percent_change:.2f}%")
@@ -488,16 +492,26 @@ def daily_results(chatgpt_portfolio: pd.DataFrame, cash: float) -> None:
     print(f"Total Sortino Ratio over {n_days} days: {sortino_total:.4f}")
     print(f"Latest ChatGPT Equity: ${final_equity:.2f}")
     # Get S&P 500 data
-    spx = yf.download("^SPX", start="2025-06-27", end=final_date + pd.Timedelta(days=1), progress=False)
-    spx = cast(pd.DataFrame, spx)
-    spx = spx.reset_index()
-
-    # Normalize to $100
-    initial_price = spx["Close"].iloc[0].item()
-    price_now = spx["Close"].iloc[-1].item()
-    scaling_factor = 100 / initial_price
-    spx_value = price_now * scaling_factor
-    print(f"$100 Invested in the S&P 500: ${spx_value:.2f}")
+    try:
+        spx = yf.download(
+            "^SPX",
+            start="2025-06-27",
+            end=final_date + pd.Timedelta(days=1),
+            progress=False,
+        )
+        spx = cast(pd.DataFrame, spx).reset_index()
+        if not spx.empty:
+            initial_price = spx["Close"].iloc[0]
+            price_now = spx["Close"].iloc[-1]
+            scaling_factor = 100 / initial_price
+            spx_value = price_now * scaling_factor
+            print(f"$100 Invested in the S&P 500: ${spx_value:.2f}")
+        else:
+            print(
+                "S&P 500 data unavailable – unable to compute benchmark performance."
+            )
+    except Exception as e:
+        print(f"S&P 500 data unavailable: {e}")
     print("today's portfolio:")
     print(chatgpt_portfolio)
     print(f"cash balance: {cash}")
